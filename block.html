@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite World Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: skyblue;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .inventory {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .block {
+            width: 50px;
+            height: 50px;
+            background: #8B4513;
+            border: 2px solid #000;
+            cursor: pointer;
+        }
+
+        .block.active {
+            border: 3px solid yellow;
+        }
+
+        .start-message {
+            position: fixed;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 50px;
+            color: rgba(0, 0, 0, 0.4);
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        .touch-controls {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            display: grid;
+            grid-template-areas:
+                ". W ."
+                "A S D";
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .mode-controls {
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-button {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            border-radius: 10px;
+            text-align: center;
+            line-height: 60px;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .mode-button {
+            width: 80px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 18px;
+            font-family: Arial, sans-serif;
+            border-radius: 10px;
+            text-align: center;
+            line-height: 60px;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .mode-button.active {
+            background: rgba(60, 179, 113, 0.8);
+        }
+
+        .control-button[data-action="up"] { grid-area: W; }
+        .control-button[data-action="left"] { grid-area: A; }
+        .control-button[data-action="down"] { grid-area: S; }
+        .control-button[data-action="right"] { grid-area: D; }
+
+        .control-button:active, .mode-button:active {
+            background: rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="inventory">
+        <div class="block active" data-block="dirt"></div>
+        <div class="block" data-block="stone" style="background: gray;"></div>
+        <div class="block" data-block="grass" style="background: green;"></div>
+    </div>
+    <div class="start-message">Place a block to begin!</div>
+    <div class="touch-controls" style="display: none;">
+        <div class="control-button" data-action="up">W</div>
+        <div class="control-button" data-action="left">A</div>
+        <div class="control-button" data-action="down">S</div>
+        <div class="control-button" data-action="right">D</div>
+    </div>
+    <div class="mode-controls" style="display: none;">
+        <div class="mode-button active" data-mode="build">Bauen</div>
+        <div class="mode-button" data-mode="destroy">Abbauen</div>
+    </div>
+    <canvas id="game"></canvas>
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const blockSize = 40;
+        const viewWidth = Math.floor(canvas.width / blockSize);
+        const viewHeight = Math.floor(canvas.height / blockSize);
+        let selectedBlock = "dirt";
+        let currentMode = "build"; // Standardmodus ist Bauen
+
+        const world = new Map();
+
+        function generateChunk(xStart, yStart) {
+            for (let y = yStart; y < yStart + viewHeight; y++) {
+                for (let x = xStart; x < xStart + viewWidth; x++) {
+                    const key = `${x},${y}`;
+                    if (!world.has(key)) {
+                        if (y > 10) world.set(key, "dirt");
+                        else if (y === 10) world.set(key, "grass");
+                        else world.set(key, null);
+                    }
+                }
+            }
+        }
+
+        const player = {
+            x: 5,
+            y: 8,
+        };
+
+        function drawWorld() {
+            const xStart = Math.floor(player.x - viewWidth / 2);
+            const yStart = Math.floor(player.y - viewHeight / 2);
+            generateChunk(xStart, yStart);
+
+            for (let y = yStart; y < yStart + viewHeight; y++) {
+                for (let x = xStart; x < xStart + viewWidth; x++) {
+                    const key = `${x},${y}`;
+                    if (world.has(key) && world.get(key)) {
+                        ctx.fillStyle = world.get(key) === "dirt" ? "#8B4513" : world.get(key) === "grass" ? "green" : "gray";
+                        ctx.fillRect(
+                            (x - xStart) * blockSize,
+                            (y - yStart) * blockSize,
+                            blockSize,
+                            blockSize
+                        );
+                    }
+                }
+            }
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = "blue";
+            ctx.fillRect(
+                (viewWidth / 2) * blockSize,
+                (viewHeight / 2) * blockSize,
+                blockSize,
+                blockSize
+            );
+        }
+
+        function breakBlock(x, y) {
+            const key = `${x},${y}`;
+            if (world.has(key) && world.get(key)) {
+                world.set(key, null);
+                hideStartMessage();
+            }
+        }
+
+        function placeBlock(x, y) {
+            const key = `${x},${y}`;
+            if (world.has(key) && !world.get(key)) {
+                world.set(key, selectedBlock);
+                hideStartMessage();
+            }
+        }
+
+        function canMoveTo(x, y) {
+            const key = `${x},${y}`;
+            return !world.get(key);
+        }
+
+        function hideStartMessage() {
+            const message = document.querySelector(".start-message");
+            if (message) message.style.display = "none";
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawWorld();
+            drawPlayer();
+            requestAnimationFrame(gameLoop);
+        }
+
+        canvas.addEventListener("mousedown", (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / blockSize) + Math.floor(player.x - viewWidth / 2);
+            const y = Math.floor((e.clientY - rect.top) / blockSize) + Math.floor(player.y - viewHeight / 2);
+
+            if (e.button === 2) {
+                breakBlock(x, y);
+            } else if (e.button === 0) {
+                placeBlock(x, y);
+            }
+        });
+
+        function setupTouchControls() {
+            const controls = document.querySelector(".touch-controls");
+            const modeControls = document.querySelector(".mode-controls");
+            controls.style.display = "grid";
+            modeControls.style.display = "flex";
+
+            // Touch-Event-Handler für die Steuerungsknöpfe
+            controls.addEventListener("touchstart", (e) => {
+                const action = e.target.dataset.action;
+                if (action === "up" && canMoveTo(player.x, player.y - 1)) player.y--;
+                if (action === "down" && canMoveTo(player.x, player.y + 1)) player.y++;
+                if (action === "left" && canMoveTo(player.x - 1, player.y)) player.x--;
+                if (action === "right" && canMoveTo(player.x + 1, player.y)) player.x++;
+                e.preventDefault();
+            });
+
+            // Modus-Umschaltung
+            modeControls.addEventListener("touchstart", (e) => {
+                const button = e.target;
+                if (button.dataset.mode) {
+                    currentMode = button.dataset.mode;
+                    document.querySelectorAll('.mode-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    button.classList.add('active');
+                }
+                e.preventDefault();
+            });
+
+            // Einzelner Touch zum Bauen oder Abbauen, je nach Modus
+            canvas.addEventListener("touchstart", (e) => {
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.floor((touch.clientX - rect.left) / blockSize) + Math.floor(player.x - viewWidth / 2);
+                const y = Math.floor((touch.clientY - rect.top) / blockSize) + Math.floor(player.y - viewHeight / 2);
+
+                e.preventDefault();
+                if (currentMode === "destroy") {
+                    breakBlock(x, y);
+                } else {
+                    placeBlock(x, y);
+                }
+            });
+        }
+
+        if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
+            setupTouchControls();
+        }
+
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "a" && canMoveTo(player.x - 1, player.y)) player.x--;
+            if (e.key === "d" && canMoveTo(player.x + 1, player.y)) player.x++;
+            if (e.key === "w" && canMoveTo(player.x, player.y - 1)) player.y--;
+            if (e.key === "s" && canMoveTo(player.x, player.y + 1)) player.y++;
+        });
+
+        document.querySelectorAll(".block").forEach((el) =>
+            el.addEventListener("click", (e) => {
+                document.querySelectorAll(".block").forEach((b) => b.classList.remove("active"));
+                el.classList.add("active");
+                selectedBlock = el.dataset.block;
+            })
+        );
+
+        document.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
