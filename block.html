@@ -116,6 +116,10 @@
         <div class="block active" data-block="dirt"></div>
         <div class="block" data-block="stone" style="background: gray;"></div>
         <div class="block" data-block="grass" style="background: green;"></div>
+        <div class="block" data-block="red" style="background: red;"></div>
+        <div class="block" data-block="yellow" style="background: yellow;"></div>
+        <div class="block" data-block="white" style="background: white;"></div>
+        <div class="block" data-block="black" style="background: black;"></div>
     </div>
     <div class="start-message">Place a block to begin!</div>
     <div class="touch-controls" style="display: none;">
@@ -142,6 +146,16 @@
         let currentMode = "build"; // Standardmodus ist Bauen
 
         const world = new Map();
+
+        const blockColors = {
+            "dirt": "#8B4513",
+            "stone": "gray",
+            "grass": "green",
+            "red": "red",
+            "yellow": "yellow",
+            "white": "white", 
+            "black": "black"
+        };
 
         function generateChunk(xStart, yStart) {
             for (let y = yStart; y < yStart + viewHeight; y++) {
@@ -170,7 +184,7 @@
                 for (let x = xStart; x < xStart + viewWidth; x++) {
                     const key = `${x},${y}`;
                     if (world.has(key) && world.get(key)) {
-                        ctx.fillStyle = world.get(key) === "dirt" ? "#8B4513" : world.get(key) === "grass" ? "green" : "gray";
+                        ctx.fillStyle = blockColors[world.get(key)];
                         ctx.fillRect(
                             (x - xStart) * blockSize,
                             (y - yStart) * blockSize,
